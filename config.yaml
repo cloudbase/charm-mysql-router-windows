@@ -1,0 +1,17 @@
+options:
+  base-port:
+    type": int
+    default: !!int 3306
+    description: |
+      Base port number for RW interface. RO, xRW and xRO will
+      increment from base_port.
+  vcredist-url:
+    type: string
+    default: "https://download.visualstudio.microsoft.com/download/pr/48431a06-59c5-4b63-a102-20b66a521863/4B5890EB1AEFDF8DFA3234B5032147EB90F050C5758A80901B201AE969780107/VC_redist.x64.exe"
+    description: |
+      The vcredist 2019 installer URL.
+  mysql-router-url:
+    type: string
+    default: https://dev.mysql.com/get/Downloads/MySQL-Router/mysql-router-8.0.21-winx64.zip
+    description: |
+      The URL to the zip file containing the mysql router executables.

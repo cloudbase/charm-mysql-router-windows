@@ -1,0 +1,31 @@
+name: mysql-router
+summary: MySQL Router
+maintainer: Gabriel Adrian Samfira <gsamfira@cloudbasesolutions.com>
+description: |
+  MySQL Router proxying communication between application clients and MySQL InnoDB Clusters.
+tags:
+- "openstack"
+- "databases"
+series:
+- win2019
+- win2016
+requires:
+  juju-info:
+    interface: juju-info
+    scope: container
+  db-router:
+    interface: mysql-router
+provides:
+  shared-db:
+    interface: mysql-shared
+    scope: container
+subordinate: !!bool true
+resources:
+  vcredist-x64:
+    type: file
+    filename: vcredist-x64.exe
+    description: Visual C++ Redistributable
+  mysql-router:
+    type: file
+    filename: mysql-router.zip
+    description: MySQL router zip
