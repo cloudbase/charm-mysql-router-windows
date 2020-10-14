@@ -23,6 +23,22 @@ $DEFAULT_INSTALL_BASE = Join-Path $env:ProgramFiles 'Cloudbase Solutions'
 $DEFAULT_DB_PREFIX = "mysqlrouter"
 $DEFAULT_SHARED_DB_ADDRESS = "127.0.0.1"
 $DEFAULT_BASE_PORT = 3306
+$DEFAULT_MYSQL_ROUTER_USERNAME = "mysqlrouteruser"
+
+function Get-AssetsDir {
+    $charmDir = Get-JujuCharmDir
+    $assets = Join-Path $charmDir "assets"
+    return $assets
+}
+
+function Get-ServiceWrapper {
+    $assets = Get-AssetsDir
+    $wrapper = Join-Path $assets "OpenStackService.exe"
+    if(!(Test-Path $wrapper)) {
+        Throw "Failed to find $wrapper"
+    }
+    return $wrapper
+}
 
 function Get-Vcredist {
     Write-JujuWarning "Getting vcredist."
@@ -118,6 +134,8 @@ function Invoke-InstallMySQLRouter {
 
     Expand-Archive -Path $mySQLRouterZip -DestinationPath $tempInstallerPath
     mv $tempInstallerPath/mysql-router*/* $installLocation/
+    $wrapper = Get-ServiceWrapper
+    cp $wrapper $installLocation/bin
 }
 
 function Get-MySQLRouterBinPath {
@@ -141,7 +159,9 @@ function Invoke-EnsureService {
 
     $binPath = Get-MySQLRouterBinPath
     $mySQLRouterConfig = Get-MySQLConfigPath
-    $binaryPathName = "`"$binPath`" -c `"$mySQLRouterConfig`" --service"
+    $installLocation = Get-InstallLocation
+    $serviceWrapper = Join-Path $installLocation "bin\OpenStackService.exe"
+    $binaryPathName = "`"$serviceWrapper`" $serviceName `"$binPath`" -c `"$mySQLRouterConfig`""
     $unitName = Get-JujuLocalUnit
     $description = "MySQL router for {0}" -f $unitName
 
@@ -244,15 +264,13 @@ function Invoke-BootstrapMySQLRouter{
         $basePort = Get-MysqlRouterBasePort
         $cmd = @(
             $mysqlRouterBin,
-            "--user", $Username,
             "--bootstrap",
-            "{0}:{1}@{2}" -f @($Username, $Password, $DBHost),
+            ("{0}:{1}@{2}" -f @($Username, $Password, $DBHost)),
             "--directory", $mysqlRouterDataDir,
-            "--conf-use-sockets",
             "--conf-bind-address", $sharedDBAddress,
-            "--conf-base-port", $basePort)
-        $ret = Invoke-JujuCommand $cmd
-        Write-JujuInfo $ret
+            "--conf-base-port", $basePort,
+            "--force")
+        Invoke-JujuCommand $cmd | Out-Null
     }
 }
 
@@ -270,15 +288,71 @@ function Invoke-EnsureRouterIsBootstrapped {
         $mysqlRouterCtx = Get-MySQLRouterContext
         if(!$mysqlRouterCtx) {
             Write-JujuWarning "MySQL router context not yet complete"
+            Set-JujuStatus -Status "waiting" -Message "Waiting for mysql cluster credentials"
             return $false
         }
+        $ctxAsJson = ConvertTo-Json $mysqlRouterCtx
+        Write-JujuWarning "router context --> $ctxAsJson"
         Invoke-BootstrapMySQLRouter -Username $mysqlRouterCtx["username"] `
                                     -Password $mysqlRouterCtx["password"] `
                                     -DBHost $mysqlRouterCtx["hostname"]
+        icacls.exe $mysqlRouterDataDir /inheritance:e /t /grant "SYSTEM:(OI)(CI)F"
+        if ($LASTEXITCODE) {
+            Throw "icacls failed with code: $LASTEXITCODE"
+        }
         Restart-Service $serviceName
         Set-CharmState -Key "bootstrap-complete" -Value $true
     }
+    Set-JujuStatus -Status "active" -Message "Unit is ready"
     return $true
+}
+
+function Invoke-ProxyUsersAndDBRequests {
+    [array]$relData = Get-JujuRelationsOfType -Relation "shared-db"
+    if ($relData.Count -eq 0) {
+        return
+    }
+    Write-JujuWarning (ConvertTo-Json $relData)
+    # This charm is a subordinate. We will only have one unit.
+    $data = $relData[0]
+
+    $rids = Get-JujuRelationIds 'db-router'
+    foreach($rid in $rids) {
+        Set-JujuRelation -RelationId $rid -Settings $data
+    }
+}
+
+function Invoke-ProxyUsersAndDBResponses {
+    $relData = Get-JujuRelationsOfType -Relation "db-router"
+    if ($relData.Count -eq 0) {
+        return
+    }
+
+    Write-JujuWarning ("Rel data is {0}" -f (ConvertTo-Json $relData))
+    $allowedSuffixes = @("password", "db_host", "ssl_ca", "wait_timeout")
+    $prefix = Get-RouterDBPrefix
+    foreach ($data in $relData) {
+        $settings = @{}
+        foreach($i in $data.Keys) {
+            if ($i.StartsWith($prefix)) {
+                # Don't send mysql router connection info to client
+                continue
+            }
+            foreach($suffix in $allowedSuffixes) {
+                if($i.EndsWith($suffix)) {
+                    $settings[$i] = ConvertFrom-Yaml $data[$i]
+                }
+            }
+        }
+        Write-JujuWarning ("About to set: {0}" -f (ConvertTo-Json $settings))
+        if ($settings.Count) { 
+            $rids = Get-JujuRelationIds 'shared-db'
+            foreach($rid in $rids) {
+                Write-JujuWarning ("Setting {0} on $rid" -f (ConvertTo-Json $settings))
+                Set-JujuRelation -RelationId $rid -Settings $settings
+            }
+        }
+    }
 }
 
 #
@@ -299,12 +373,31 @@ function Invoke-StopHook {
 }
 
 function Invoke-ConfigChangedHook {
+    Invoke-EnsureService
+    $dataDir = Get-MysqlRouterDataDir
+    if ((Test-Path $dataDir)) {
+        # takeown.exe /F $dataDir /A /R /D Y
+        # if ($LASTEXITCODE) {
+        #     Throw "takeown failed with code: $LASTEXITCODE"
+        # }
+        icacls.exe $dataDir /inheritance:e /t /grant "SYSTEM:(OI)(CI)F"
+        if ($LASTEXITCODE) {
+            Throw "icacls failed with code: $LASTEXITCODE"
+        }
+    }
+    Invoke-SharedDBRelationChanged
+    Invoke-DBRouterRelationChanged
 }
 
 function Invoke-DBRouterRelationChanged {
     if (!(Invoke-EnsureRouterIsBootstrapped)) {
         return
     }
+    Invoke-ProxyUsersAndDBResponses
+}
+
+function Invoke-SharedDBRelationChanged {
+    Invoke-ProxyUsersAndDBRequests
 }
 
 function Invoke-DBRouterRelationJoined {

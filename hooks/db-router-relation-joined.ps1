@@ -21,7 +21,7 @@ Import-Module JujuLogging
 try {
     Import-Module MySQLRouterHooks
 
-    Invoke-SharedDBRelationChanged
+    Invoke-DBRouterRelationJoined
 } catch {
     Write-HookTracebackToLog $_
     exit 1

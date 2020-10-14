@@ -49,7 +49,11 @@ PowerShellVersion = '3.0'
 FunctionsToExport = @(
     "Invoke-InstallHook",
     "Invoke-StopHook",
-    "Invoke-ConfigChangedHook")
+    "Invoke-ConfigChangedHook",
+    "Invoke-InstallHook",
+    "Invoke-DBRouterRelationChanged",
+    "Invoke-SharedDBRelationChanged",
+    "Invoke-DBRouterRelationJoined")
 
 # Cmdlets to export from this module
 CmdletsToExport = @()

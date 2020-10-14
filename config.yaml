@@ -1,6 +1,6 @@
 options:
   base-port:
-    type": int
+    type: int
     default: !!int 3306
     description: |
       Base port number for RW interface. RO, xRW and xRO will

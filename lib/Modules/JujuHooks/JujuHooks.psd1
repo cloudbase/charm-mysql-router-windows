@@ -94,7 +94,8 @@ FunctionsToExport = @(
     "Get-JujuStatus",
     "Get-JujuAction",
     "Set-JujuAction",
-    "Set-JujuActionFailed")
+    "Set-JujuActionFailed",
+    "Get-NetworkPrimaryAddress")
 # Cmdlets to export from this module
 CmdletsToExport = '*'
 
