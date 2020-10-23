@@ -82,7 +82,8 @@ FunctionsToExport = @(
     "Get-IniFileValue",
     "Set-IniFileValue",
     "Remove-IniFileValue",
-    "Start-ProcessAsUser")
+    "Start-ProcessAsUser",
+    "Remove-JujuWindowsService")
 
 # Cmdlets to export from this module
 CmdletsToExport = '*'
