@@ -1080,6 +1080,18 @@ function Start-ProcessAsUser {
     }
 }
 
+function Remove-JujuWindowsService {
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string]$service
+    )
+
+    $svc = gcim Win32_Service -Filter ('Name="{0}"' -f $service)
+    if($svc) {
+        Invoke-CimMethod -InputObject $svc -MethodName Delete
+    }
+}
+
 # Backwards compatible aliases
 New-Alias -Name Is-ComponentInstalled -Value Get-ComponentIsInstalled
 New-Alias -Name Change-ServiceLogon -Value Set-ServiceLogon

@@ -235,6 +235,8 @@ function Get-MysqlRouterDataDir {
 }
 
 function Get-SharedDBAddress {
+    # We are a subordinate charm that launches a mysql router on
+    # the local machine. We bind to 127.0.0.1
     return $DEFAULT_SHARED_DB_ADDRESS
 }
 
@@ -345,7 +347,8 @@ function Invoke-ProxyUsersAndDBResponses {
             }
         }
         Write-JujuWarning ("About to set: {0}" -f (ConvertTo-Json $settings))
-        if ($settings.Count) { 
+        if ($settings.Count) {
+            $settings["db_host"] = Get-SharedDBAddress
             $rids = Get-JujuRelationIds 'shared-db'
             foreach($rid in $rids) {
                 Write-JujuWarning ("Setting {0} on $rid" -f (ConvertTo-Json $settings))
