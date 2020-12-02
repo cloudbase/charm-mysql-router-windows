@@ -78,7 +78,7 @@ function Get-MySQLRouterInstaller {
     Write-JujuWarning "Getting mysql router installer"
     $mysqlRouterURL = Get-JujuCharmConfig -Scope "mysql-router-url"
     if (!$mysqlRouterURL) {
-        Write-JujuWarning "Trying to get vcredist Juju resource"
+        Write-JujuWarning "Trying to get mysql-router Juju resource"
         $mySQLRouterPath = Get-JujuResource -Resource "mysql-router"
         return $mySQLRouterPath
     } else {
@@ -90,7 +90,7 @@ function Get-MySQLRouterInstaller {
     $tempDownloadFile = Join-Path $env:TEMP $file
     Start-ExecuteWithRetry {
         Invoke-FastWebRequest -Uri $url -OutFile $tempDownloadFile
-    } -RetryMessage "Downloading vcredist failed. Retrying..."
+    } -RetryMessage "Downloading mysql router package failed. Retrying..."
 
     return $tempDownloadFile
 }
